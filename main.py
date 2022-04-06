@@ -1,13 +1,16 @@
 # -*- coding: utf-8 -*-
 import string
 from itertools import chain
+from typing import final
 
 from tabulate import tabulate
 
 from unicodedata import normalize
 
 
-def print_table(table, headers):
+def print_table(table, headers, title=None):
+    if title:
+        print(tabulate([title.upper()], tablefmt="fancy_grid"))
     print(tabulate(table, headers, tablefmt="fancy_grid"))
 
 
@@ -27,13 +30,26 @@ class Automata:
         self.states = [[self.symbol_initial] + [''] * len(self.alphabet_machine)]
         self.last_state = 0
 
-    def deep_index(self, w):
-        return [(i, sub.index(w)) for (i, sub) in enumerate(self.states) if w in sub]
+    def deep_index(self, word):
+        """
+            Function return index list of list (0, 0) S[0][0]
+        """
+
+        return [(i, sub.index(word)) for (i, sub) in enumerate(self.states) if word in sub]
 
     def get_state(self, position=0, **kwargs):
+        """
+            Function return actual state by autoincrement 
+        """
         return kwargs.get('state_final', '') + list(self.alphabet)[self.last_state - position]
 
     def create_state(self, new=True, state='', **kwargs):
+        """
+            Function thats create the state
+            state: pre-defined(in case when determize) the new state
+             is the state parameter passed in function,
+            state_final: passed in kwargs, generally is the '*'
+        """
         if new:
             if state:
                 self.states = self.states + [
@@ -44,29 +60,39 @@ class Automata:
                 self.last_state += 1
 
     def automata_n_deteminize(self):
+        """
+            Function get the data and generate the automata finite
+        """
         for num_word, word in enumerate(words):
-            len_word = len(word) - 1
-            for num_letter, letter in enumerate(word):
-                if num_letter == 0 and len_word:
+            len_word = len(word) - 1 # decrement 1 for compare in enumerate for
+            for num_token, token in enumerate(word):
+                if num_token == 0 and len_word:
+                    # here is the first token in word or alphabet not in S
                     if num_word == 0:
-                        self.states[0][self.alphabet_machine.index(letter) + 1] += list(self.alphabet)[self.last_state]
+                        # add in S the first token and create new state
+                        self.states[0][self.alphabet_machine.index(token) + 1] += list(self.alphabet)[self.last_state]
                         self.create_state()
                     else:
-                        self.states[0][self.alphabet_machine.index(letter) + 1] += list(self.alphabet)[
+                        # only add in S the token
+                        self.states[0][self.alphabet_machine.index(token) + 1] += list(self.alphabet)[
                             self.last_state - 1]
 
                 else:
                     if len_word == 0:
-                        self.states[self.last_state][self.alphabet_machine.index(letter) + 1] = list(self.alphabet)[
+                        # alphabet in S
+                        self.states[self.last_state][self.alphabet_machine.index(token) + 1] = list(self.alphabet)[
                             self.last_state - 1]
                         if not self.get_state(position=1, state_final='*') in chain(*self.states):
+                            # if the state not be finally, change the finally
                             self.states[self.last_state][0] = '*' + self.states[self.last_state][0]
-                        if num_letter == 0:
-                            self.states[0][self.alphabet_machine.index(letter) + 1] += list(self.alphabet)[
+                        if num_token == 0:
+                            # Add in S finally state for alphabetic in S
+                            self.states[0][self.alphabet_machine.index(token) + 1] += list(self.alphabet)[
                                 self.last_state - 1]
                     else:
-                        if num_letter == len_word:
-                            self.states[self.last_state][self.alphabet_machine.index(letter) + 1] = list(self.alphabet)[
+                        if num_token == len_word:
+                            # here the motive for -1, when be final token in word add state and create new state
+                            self.states[self.last_state][self.alphabet_machine.index(token) + 1] = list(self.alphabet)[
                                 self.last_state]
                             self.create_state(state_final='*')
                             try:
@@ -76,29 +102,58 @@ class Automata:
                                 continue
                             self.create_state()
                         else:
-                            self.states[self.last_state][self.alphabet_machine.index(letter) + 1] = list(self.alphabet)[
+                            # the normal process, add state and create new state
+                            self.states[self.last_state][self.alphabet_machine.index(token) + 1] = list(self.alphabet)[
                                 self.last_state]
                             self.create_state()
+        
+        print_table(aut.states, [aut.delta] + aut.alphabet_machine, 'autômato não Determizado')
 
     def determinize_automata(self):
+        """
+            Function thats determize automata
+        """
         for state in self.states:
             for token in state:
                 if not any(token in state[0] for state in self.states) and token:
+                    # verify the token not have state, if not create the state but passed the name of state, btw the token
                     self.create_state(state=token)
                     indexes = self.deep_index(token)
                     # self.states[indexes[0][0]][indexes[0][1]] = f"[{self.states[indexes[0][0]][indexes[0][1]]}]"
                     self.states[indexes[0][0]][indexes[0][1]] = self.states[indexes[0][0]][indexes[0][1]]
-                    for letter in token:
-                        indexes_letters = self.deep_index(letter)
-                        for key, valor in enumerate(self.states[indexes_letters[-1][0]]):
+                    for new_token in token:
+                        # add states for new state
+                        indexes_tokens = self.deep_index(new_token)
+                        for key, valor in enumerate(self.states[indexes_tokens[-1][0]]):
                             if key == 0 or not valor:
+                                # not subscribe the name of state
                                 continue
                             self.states[indexes[1][0]][key] += valor
 
         for state in self.states:
             for token in state:
+                # its ugly but here to be recursivity that function
                 if not any(token in state[0] for state in self.states) and token:
                     self.determinize_automata()
+
+        print_table(aut.states, [aut.delta] + aut.alphabet_machine, 'autômato Determizado')
+    
+    def create_state_error(self):
+        """
+            Maping blanks states and subscribe for state
+        """
+        self.create_state(state='<e>', state_final='*')
+        for key_state, state in enumerate(self.states):
+            for key_token, token in enumerate(state):
+                if not token:
+                    self.states[key_state][key_token] = '<e>'
+    
+        print_table(aut.states, [aut.delta] + aut.alphabet_machine, 'autômato com estado de erro')
+    
+    def compile(self):
+        self.automata_n_deteminize()
+        self.determinize_automata()
+        self.create_state_error()
 
 
 # words = ['se', 'entao', 'senao', 'a', 'e', 'i', 'o', 'u']
@@ -111,9 +166,4 @@ while True:
         words.append(normalize('NFKD', command).encode('ASCII', 'ignore').decode('ASCII').lower())
 
 aut = Automata(words=words)
-aut.automata_n_deteminize()
-print(tabulate(['autômato não Determizado'.upper()], tablefmt="fancy_grid"))
-print_table(aut.states, [aut.delta] + aut.alphabet_machine)
-aut.determinize_automata()
-print(tabulate(['autômato Determizado'.upper()], tablefmt="fancy_grid"))
-print_table(aut.states, [aut.delta] + aut.alphabet_machine)
+aut.compile()
