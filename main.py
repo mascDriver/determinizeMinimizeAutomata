@@ -169,9 +169,9 @@ class Automata:
 
     def compile(self):
         self.automata_n_deteminize()
-        print_table(aut.states, [aut.delta] + aut.alphabet_machine, 'autômato não Determizado')
+        print_table(aut.states, [aut.delta] + aut.alphabet_machine, 'autômato não determinizado')
         self.determinize_automata()
-        print_table(aut.states, [aut.delta] + aut.alphabet_machine, 'autômato Determizado')
+        print_table(aut.states, [aut.delta] + aut.alphabet_machine, 'autômato determinizado')
         self.create_state_error()
         print_table(aut.states, [aut.delta] + aut.alphabet_machine, 'autômato com estado de erro')
 
