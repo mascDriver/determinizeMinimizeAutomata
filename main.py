@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
+import re
 import string
 from itertools import chain
-from typing import final
+from unicodedata import normalize
 
 from tabulate import tabulate
-
-from unicodedata import normalize
 
 
 def print_table(table, headers, title=None):
@@ -17,6 +16,22 @@ def print_table(table, headers, title=None):
 def prepare_alphabet_machine():
     formalize_data = [list(word) for word in words]
     return list(dict.fromkeys(list(chain.from_iterable(formalize_data))))
+
+
+def formalize_data(file_name):
+    ref_arquivo = open(file_name, "r")
+    pattern = "<(?:\"[^\"]*\"['\"]*|'[^']*'['\"]*|[^'\">])+>"
+    for linha in ref_arquivo:
+        valores = normalize('NFKD', linha.strip()).encode('ASCII', 'ignore').decode('ASCII').lower()
+        if valores.startswith('<s>'):
+            tokens = valores.replace('::=', '').split('|')
+            for token in tokens:
+                words.append(re.sub(pattern, '', token).strip())
+            continue
+        elif valores.startswith('<'):
+            continue
+        words.append(valores)
+    ref_arquivo.close()
 
 
 class Automata:
@@ -64,7 +79,7 @@ class Automata:
             Function get the data and generate the automata finite
         """
         for num_word, word in enumerate(words):
-            len_word = len(word) - 1 # decrement 1 for compare in enumerate for
+            len_word = len(word) - 1  # decrement 1 for compare in enumerate for
             for num_token, token in enumerate(word):
                 if num_token == 0 and len_word:
                     # here is the first token in word or alphabet not in S
@@ -106,8 +121,6 @@ class Automata:
                             self.states[self.last_state][self.alphabet_machine.index(token) + 1] = list(self.alphabet)[
                                 self.last_state]
                             self.create_state()
-        
-        print_table(aut.states, [aut.delta] + aut.alphabet_machine, 'autômato não Determizado')
 
     def determinize_automata(self):
         """
@@ -116,8 +129,16 @@ class Automata:
         for state in self.states:
             for token in state:
                 if not any(token in state[0] for state in self.states) and token:
+                    state_final = False
                     # verify the token not have state, if not create the state but passed the name of state, btw the token
-                    self.create_state(state=token)
+                    for token_new_state in token:
+                        if any('*' + token_new_state in state[0] for state in self.states) and \
+                                not any('*' + token in state[0] for state in self.states):
+                            state_final = True
+                    if state_final:
+                        self.create_state(state=token, state_final='*')
+                    else:
+                        self.create_state(state=token)
                     indexes = self.deep_index(token)
                     # self.states[indexes[0][0]][indexes[0][1]] = f"[{self.states[indexes[0][0]][indexes[0][1]]}]"
                     self.states[indexes[0][0]][indexes[0][1]] = self.states[indexes[0][0]][indexes[0][1]]
@@ -128,7 +149,7 @@ class Automata:
                             if key == 0 or not valor:
                                 # not subscribe the name of state
                                 continue
-                            self.states[indexes[1][0]][key] += valor
+                            self.states[-1][key] += valor
 
         for state in self.states:
             for token in state:
@@ -136,8 +157,6 @@ class Automata:
                 if not any(token in state[0] for state in self.states) and token:
                     self.determinize_automata()
 
-        print_table(aut.states, [aut.delta] + aut.alphabet_machine, 'autômato Determizado')
-    
     def create_state_error(self):
         """
             Maping blanks states and subscribe for state
@@ -147,23 +166,34 @@ class Automata:
             for key_token, token in enumerate(state):
                 if not token:
                     self.states[key_state][key_token] = '<e>'
-    
-        print_table(aut.states, [aut.delta] + aut.alphabet_machine, 'autômato com estado de erro')
-    
+
     def compile(self):
         self.automata_n_deteminize()
+        print_table(aut.states, [aut.delta] + aut.alphabet_machine, 'autômato não Determizado')
         self.determinize_automata()
+        print_table(aut.states, [aut.delta] + aut.alphabet_machine, 'autômato Determizado')
         self.create_state_error()
+        print_table(aut.states, [aut.delta] + aut.alphabet_machine, 'autômato com estado de erro')
 
 
 # words = ['se', 'entao', 'senao', 'a', 'e', 'i', 'o', 'u']
 words = []
 while True:
-    command = input('Digite a palavra, para finalizar escreva "EOF": ')
-    if command.lower() == 'eof':
-        break
-    else:
-        words.append(normalize('NFKD', command).encode('ASCII', 'ignore').decode('ASCII').lower())
+    choice = input('Como você deseja adicionar gramaticas?\n1 - Manual\n2 - Arquivo\n')
+    if choice == '1':
+        command = input('Digite a palavra, para finalizar escreva "EOF": ')
+        if command.lower() == 'eof':
+            break
+        else:
+            words.append(normalize('NFKD', command).encode('ASCII', 'ignore').decode('ASCII').lower())
+    elif choice == '2':
+        file = input('Digite o nome do arquivo com a extensão: ')
+        try:
+            open(file, 'r')
+            formalize_data(file)
+            break
+        except FileNotFoundError:
+            print('Arquivo não encontrado, verifique o nome do arquivo\n')
 
 aut = Automata(words=words)
 aut.compile()
